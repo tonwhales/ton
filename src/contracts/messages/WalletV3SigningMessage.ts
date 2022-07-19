@@ -1,16 +1,21 @@
 import { Cell } from "../../boc/Cell";
-import { Maybe } from "../../types";
 import { Message } from "../../messages/Message";
+import { Maybe } from "../../types";
+
+export type WalletV3Order = {
+    sendMode: number
+    message: Message
+}[] | Message
 
 export class WalletV3SigningMessage implements Message {
 
     readonly timeout: number;
     readonly seqno: number;
     readonly walletId: number;
-    readonly order: Message;
+    readonly order: WalletV3Order;
     readonly sendMode: number;
 
-    constructor(args: { timeout?: Maybe<number>, seqno: Maybe<number>, walletId?: number, sendMode: number, order: Message }) {
+    constructor(args: { timeout?: Maybe<number>, seqno: Maybe<number>, walletId?: number, sendMode: number, order: WalletV3Order }) {
         this.order = args.order;
         this.sendMode = args.sendMode;
         if (args.timeout !== undefined && args.timeout !== null) {
@@ -40,11 +45,18 @@ export class WalletV3SigningMessage implements Message {
             cell.bits.writeUint(this.timeout, 32);
         }
         cell.bits.writeUint(this.seqno, 32);
-        cell.bits.writeUint8(this.sendMode);
-
-        // Write order
-        let orderCell = new Cell();
-        this.order.writeTo(orderCell);
-        cell.refs.push(orderCell);
+        if (Array.isArray(this.order)) {
+            this.order.forEach(({ sendMode, message }) => {
+                cell.bits.writeUint8(sendMode);
+                let orderCell = new Cell();
+                message.writeTo(orderCell);
+                cell.refs.push(orderCell);
+            })
+        } else {
+            cell.bits.writeUint8(this.sendMode);
+            let orderCell = new Cell();
+            this.order.writeTo(orderCell);
+            cell.refs.push(orderCell);
+        }
     }
 }
